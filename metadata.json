@@ -1,0 +1,6 @@
+{
+  "name": "Reactive-AudioOrb",
+  "description": "Select your music or video file and the Orb will process the multimedia to bend and shape as the model understands the content, reacting by changing its form and color.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
