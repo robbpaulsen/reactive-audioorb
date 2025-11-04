@@ -104,6 +104,46 @@ const themes = {
     name: 'Halcyon',
     colors: ['#94e2d5', '#f5c2e7', '#cba6f7', '#fab387'],
   },
+  dracula: {
+    name: 'Dracula',
+    colors: ['#bd93f9', '#ff79c6', '#8be9fd', '#50fa7b', '#ffb86c', '#ff5555'],
+  },
+  nord: {
+    name: 'Nord',
+    colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead', '#a3be8c', '#ebcb8b'],
+  },
+  gruvbox: {
+    name: 'Gruvbox',
+    colors: ['#fb4934', '#b8bb26', '#fabd2f', '#83a598', '#d3869b', '#fe8019'],
+  },
+  synthwave: {
+    name: 'Synthwave',
+    colors: ['#ff00ff', '#00ffff', '#ff1493', '#7b68ee', '#ff6ec7', '#00d9ff'],
+  },
+  rosepine: {
+    name: 'Rose Pine',
+    colors: ['#ebbcba', '#f6c177', '#ea9a97', '#9ccfd8', '#c4a7e7', '#eb6f92'],
+  },
+  material: {
+    name: 'Material',
+    colors: ['#82aaff', '#c792ea', '#89ddff', '#c3e88d', '#ffcb6b', '#f07178'],
+  },
+  solarized: {
+    name: 'Solarized',
+    colors: ['#268bd2', '#2aa198', '#859900', '#b58900', '#cb4b16', '#dc322f'],
+  },
+  cyberpunk: {
+    name: 'Cyberpunk',
+    colors: ['#00ff9f', '#00b8ff', '#d600ff', '#ff00ff', '#fffc00', '#ff003c'],
+  },
+  sunset: {
+    name: 'Sunset',
+    colors: ['#ff6b6b', '#ee5a6f', '#c44569', '#f8b500', '#ff9a56', '#ff6348'],
+  },
+  ocean: {
+    name: 'Ocean',
+    colors: ['#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#667eea', '#764ba2'],
+  },
 };
 
 @customElement('gdm-live-audio')
@@ -116,6 +156,9 @@ export class GdmLiveAudio extends LitElement {
   ).matches;
   @state() private ambientBrightness = 0.5;
   @state() private currentTheme = 'default';
+  @state() private showFloatingControls = true; // Show/hide controls on mouse move
+  @state() private isFullscreen = false; // Track fullscreen state
+  private mouseInactivityTimeout: number = 0;
 
   // Orb control states, modified by function calls
   @state() private orbColor = themes.default.colors[0]; // Default color
@@ -155,6 +198,14 @@ export class GdmLiveAudio extends LitElement {
       width: 80%;
       max-width: 640px;
       z-index: 5;
+      opacity: 1;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    #media-container.hidden {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-20px);
+      pointer-events: none;
     }
 
     #media-container video,
@@ -186,39 +237,88 @@ export class GdmLiveAudio extends LitElement {
       justify-content: center;
       flex-direction: column;
       gap: 10px;
+      opacity: 1;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: translateY(0);
+    }
+
+    .controls.hidden {
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
     }
 
     button,
     .file-label,
     .theme-select {
       outline: none;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.15);
       color: white;
-      border-radius: 99px;
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(10px);
-      height: 50px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+      backdrop-filter: blur(20px);
+      height: 54px;
       cursor: pointer;
-      font-size: 16px;
-      padding: 0 20px;
+      font-size: 15px;
+      font-weight: 500;
+      padding: 0 24px;
       margin: 0;
-      transition: background 0.2s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       font-family: sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 220px;
+      width: 240px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    button::before,
+    .file-label::before,
+    .theme-select::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.5s;
     }
 
     button:hover,
     .file-label:hover,
     .theme-select:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    button:hover::before,
+    .file-label:hover::before,
+    .theme-select:hover::before {
+      left: 100%;
+    }
+
+    button:active,
+    .file-label:active,
+    .theme-select:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     }
 
     button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+      transform: none;
+    }
+
+    button:disabled:hover {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: none;
     }
 
     .file-input {
@@ -234,11 +334,78 @@ export class GdmLiveAudio extends LitElement {
       -webkit-appearance: none;
       -moz-appearance: none;
       appearance: none;
-      background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
-      background-repeat: no-repeat;
-      background-position: right 20px top 50%;
-      background-size: 0.65em auto;
-      padding-right: 40px;
+      background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)),
+                        url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+      background-repeat: no-repeat, no-repeat;
+      background-position: 0 0, right 24px top 50%;
+      background-size: 100% 100%, 0.6em auto;
+      padding-right: 50px;
+      padding-left: 20px;
+      text-align: left;
+    }
+
+    .theme-select:hover {
+      background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1)),
+                        url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+      background-repeat: no-repeat, no-repeat;
+      background-position: 0 0, right 24px top 50%;
+      background-size: 100% 100%, 0.6em auto;
+    }
+
+    .theme-select option {
+      background: #1a1a2e;
+      color: white;
+      padding: 10px;
+    }
+
+    .floating-controls {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 15;
+      display: flex;
+      gap: 15px;
+      opacity: 1;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .floating-controls.hidden {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.9);
+      pointer-events: none;
+    }
+
+    .floating-btn {
+      outline: none;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      border-radius: 50px;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(15px);
+      height: 60px;
+      min-width: 180px;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 600;
+      padding: 0 30px;
+      transition: all 0.2s ease;
+      font-family: sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .floating-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: scale(1.05);
+      box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    .floating-btn:active {
+      transform: scale(0.98);
     }
   `;
 
@@ -249,6 +416,76 @@ export class GdmLiveAudio extends LitElement {
     mediaQuery.addEventListener('change', (e) => {
       this.isDarkMode = e.matches;
     });
+
+    // Handle mouse movement to show/hide controls
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleKeyPress = this.handleKeyPress.bind(this);
+    this.handleFullscreenChange = this.handleFullscreenChange.bind(this);
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener('mousemove', this.handleMouseMove);
+    window.addEventListener('keydown', this.handleKeyPress);
+    document.addEventListener('fullscreenchange', this.handleFullscreenChange);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener('mousemove', this.handleMouseMove);
+    window.removeEventListener('keydown', this.handleKeyPress);
+    document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
+    clearTimeout(this.mouseInactivityTimeout);
+  }
+
+  private handleMouseMove() {
+    if (!this.isProcessing) return;
+
+    this.showFloatingControls = true;
+    clearTimeout(this.mouseInactivityTimeout);
+
+    this.mouseInactivityTimeout = window.setTimeout(() => {
+      this.showFloatingControls = false;
+    }, 3000); // Hide after 3 seconds of inactivity
+  }
+
+  private handleKeyPress(e: KeyboardEvent) {
+    if (!this.isProcessing) return;
+
+    if (e.key === 'Escape' || e.key === ' ') {
+      e.preventDefault();
+      this.showFloatingControls = !this.showFloatingControls;
+
+      if (this.showFloatingControls) {
+        clearTimeout(this.mouseInactivityTimeout);
+        this.mouseInactivityTimeout = window.setTimeout(() => {
+          this.showFloatingControls = false;
+        }, 3000);
+      }
+    }
+
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      this.toggleFullscreen();
+    }
+  }
+
+  private handleFullscreenChange() {
+    this.isFullscreen = !!document.fullscreenElement;
+  }
+
+  private async toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        this.isFullscreen = true;
+      } else {
+        await document.exitFullscreen();
+        this.isFullscreen = false;
+      }
+    } catch (err) {
+      console.error('Error toggling fullscreen:', err);
+    }
   }
 
   private async initClient() {
@@ -539,13 +776,11 @@ export class GdmLiveAudio extends LitElement {
   render() {
     return html`
       <div>
-        <div id="media-container"></div>
-        <div class="controls">
+        <div id="media-container" class="${this.isProcessing ? 'hidden' : ''}"></div>
+        <div class="controls ${this.isProcessing ? 'hidden' : ''}">
           ${
             this.isProcessing
-              ? html`
-                  <button @click=${this.stopProcessing}>⏹️ Stop Processing</button>
-                `
+              ? html``
               : html`
                   <input
                     type="file"
@@ -555,24 +790,39 @@ export class GdmLiveAudio extends LitElement {
                     class="file-input"
                   />
                   <label for="file-input" class="file-label">
-                    📂 Select File
+                    🎵 Choose Audio/Video
                   </label>
+                  <select
+                    @change=${this.handleThemeChange}
+                    class="theme-select"
+                    aria-label="Select color theme"
+                  >
+                    ${Object.entries(themes).map(
+                      ([key, theme]) => html`
+                        <option value=${key} ?selected=${key === this.currentTheme}>
+                          🎨 ${theme.name}
+                        </option>
+                      `,
+                    )}
+                  </select>
                 `
           }
-          <select
-            @change=${this.handleThemeChange}
-            class="theme-select"
-            aria-label="Select color theme"
-          >
-            ${Object.entries(themes).map(
-              ([key, theme]) => html`
-                <option value=${key} ?selected=${key === this.currentTheme}>
-                  ${theme.name}
-                </option>
-              `,
-            )}
-          </select>
         </div>
+
+        ${
+          this.isProcessing
+            ? html`
+                <div class="floating-controls ${this.showFloatingControls ? '' : 'hidden'}">
+                  <button class="floating-btn" @click=${this.toggleFullscreen}>
+                    ${this.isFullscreen ? '🪟 Exit Fullscreen' : '🖥️ Fullscreen'}
+                  </button>
+                  <button class="floating-btn" @click=${this.stopProcessing}>
+                    ⏹️ Stop
+                  </button>
+                </div>
+              `
+            : ''
+        }
 
         <div id="status">${this.error ? this.error : this.status}</div>
         <gdm-live-audio-visuals-3d
@@ -582,6 +832,7 @@ export class GdmLiveAudio extends LitElement {
           .isDarkMode=${this.isDarkMode}
           .brightness=${this.ambientBrightness}
           .orbColor=${this.orbColor}
+          .themeColors=${themes[this.currentTheme].colors}
           .pulseIntensity=${this.pulseIntensity}
           .amplitude=${this.orbAmplitude}
           .frequency=${this.orbFrequency}

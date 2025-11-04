@@ -24,9 +24,12 @@ const PARTICLE_VS = `
   uniform float time;
   uniform float size;
   attribute vec2 blinkInfo; // x: rate, y: offset
+  attribute vec3 color; // Per-particle color
   varying float vBlink;
+  varying vec3 vColor;
   void main() {
     vBlink = blinkInfo.x > 0.0 ? 0.5 + 0.5 * sin(blinkInfo.y + blinkInfo.x * time) : 1.0;
+    vColor = color;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     gl_PointSize = size * (300.0 / -mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
@@ -34,21 +37,20 @@ const PARTICLE_VS = `
 `;
 
 const PARTICLE_FS = `
-  uniform vec3 color;
   uniform float time;
   uniform float opacity;
   varying float vBlink;
+  varying vec3 vColor;
   void main() {
     float dist = length(gl_PointCoord - vec2(0.5));
     if (dist > 0.5) {
       discard;
     }
-    // Create a cyclical color shift through a cool-toned palette.
-    float angle = time * 0.5 + gl_FragCoord.x * 0.01;
-    vec3 colorOffset = vec3(sin(angle), 0.0, cos(angle)) * 0.1; // Cycle in R-B plane
-    vec3 shiftedColor = color + colorOffset;
+    // Subtle shimmer effect
+    float shimmer = 1.0 + 0.15 * sin(time * 2.0 + gl_FragCoord.x * 0.02 + gl_FragCoord.y * 0.02);
+    vec3 finalColor = vColor * shimmer;
 
-    gl_FragColor = vec4(shiftedColor, opacity * vBlink * (1.0 - dist * 2.0));
+    gl_FragColor = vec4(finalColor, opacity * vBlink * (1.0 - dist * 2.0));
   }
 `;
 
@@ -67,6 +69,7 @@ export class GdmLiveAudioVisuals3D extends LitElement {
   private prevTime = 0;
   private rotation = new THREE.Vector3(0, 0, 0);
   private mouse = new THREE.Vector2(-10, -10);
+  private targetMouse = new THREE.Vector2(-10, -10); // Target for smooth following
   private raycaster = new THREE.Raycaster();
   private mouseIntersection = new THREE.Vector3(-99, -99, -99);
   private particleVelocities: Float32Array;
@@ -76,6 +79,7 @@ export class GdmLiveAudioVisuals3D extends LitElement {
   @property({type: Boolean}) isDarkMode = true;
   @property({type: Number}) brightness = 0.5;
   @property({type: String}) orbColor = '#aaaaff';
+  @property({type: Array}) themeColors: string[] = ['#aaaaff', '#ffaaaa', '#aaffaa'];
   @property({type: Number}) pulseIntensity = 0.0;
   @property({type: Number}) amplitude = 0.5;
   @property({type: Number}) frequency = 3.0;
@@ -117,8 +121,9 @@ export class GdmLiveAudioVisuals3D extends LitElement {
   `;
 
   private onMouseMove(event: MouseEvent) {
-    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    // Update target, actual mouse will follow with lag
+    this.targetMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.targetMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   }
 
   connectedCallback() {
@@ -155,22 +160,56 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     const particleCount = 5000;
     const particlesGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
     const blinkInfos = new Float32Array(particleCount * 2);
     this.particleVelocities = new Float32Array(particleCount * 3);
+
+    // Use theme colors for particles
+    const themeColorObjs = this.themeColors.map(c => new THREE.Color(c));
+    const numColors = themeColorObjs.length;
 
     for (let i = 0; i < particleCount; i++) {
       const i3 = i * 3;
       const i2 = i * 2;
-      positions[i3] = (Math.random() - 0.5) * 15;
-      positions[i3 + 1] = (Math.random() - 0.5) * 15;
-      positions[i3 + 2] = (Math.random() - 0.5) * 15;
+
+      // Generate position
+      const x = (Math.random() - 0.5) * 15;
+      const y = (Math.random() - 0.5) * 15;
+      const z = (Math.random() - 0.5) * 15;
+      positions[i3] = x;
+      positions[i3 + 1] = y;
+      positions[i3 + 2] = z;
+
+      // Calculate angle in XZ plane to determine sector
+      const angle = Math.atan2(z, x);
+      const normalizedAngle = (angle + Math.PI) / (2 * Math.PI); // 0 to 1
+
+      // Determine which color pair to use based on angle (creates sectors)
+      const sectorIndex = Math.floor(normalizedAngle * numColors);
+      const nextSectorIndex = (sectorIndex + 1) % numColors;
+
+      // Calculate blend factor within sector for gradient effect
+      const sectorPhase = (normalizedAngle * numColors) % 1;
+      const blendFactor = sectorPhase;
+
+      // Mix colors for gradient effect
+      const color1 = themeColorObjs[sectorIndex];
+      const color2 = themeColorObjs[nextSectorIndex];
+      const mixedColor = new THREE.Color();
+      mixedColor.r = color1.r * (1 - blendFactor) + color2.r * blendFactor;
+      mixedColor.g = color1.g * (1 - blendFactor) + color2.g * blendFactor;
+      mixedColor.b = color1.b * (1 - blendFactor) + color2.b * blendFactor;
+
+      colors[i3] = mixedColor.r;
+      colors[i3 + 1] = mixedColor.g;
+      colors[i3 + 2] = mixedColor.b;
 
       this.particleVelocities[i3] = (Math.random() - 0.5) * 0.0005;
       this.particleVelocities[i3 + 1] = (Math.random() - 0.5) * 0.0005;
       this.particleVelocities[i3 + 2] = (Math.random() - 0.5) * 0.0005;
 
-      if (Math.random() < 0.1) {
-        // 10% of particles blink
+      if (Math.random() < 0.25) {
+        // 25% of particles blink
         blinkInfos[i2] = 0.5 + Math.random() * 0.5; // rate
         blinkInfos[i2 + 1] = Math.random() * Math.PI * 2; // offset
       } else {
@@ -183,16 +222,19 @@ export class GdmLiveAudioVisuals3D extends LitElement {
       new THREE.BufferAttribute(positions, 3),
     );
     particlesGeometry.setAttribute(
+      'color',
+      new THREE.BufferAttribute(colors, 3),
+    );
+    particlesGeometry.setAttribute(
       'blinkInfo',
       new THREE.BufferAttribute(blinkInfos, 2),
     );
 
     const particlesMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        color: {value: new THREE.Color(0xaaaaff)},
         time: {value: 0},
         opacity: {value: 0.5},
-        size: {value: 0.02},
+        size: {value: 0.06}, // Slightly smaller for better balance
       },
       vertexShader: PARTICLE_VS,
       fragmentShader: PARTICLE_FS,
@@ -203,6 +245,14 @@ export class GdmLiveAudioVisuals3D extends LitElement {
 
     this.particles = new THREE.Points(particlesGeometry, particlesMaterial);
     scene.add(this.particles);
+
+    // Initialize audio reactive properties for particles
+    (this.particles as any).audioReactive = {
+      baseSize: 0.06, // Match material size
+      targetSize: 0.06,
+      positions: particlesGeometry.attributes.position.array,
+      originalPositions: particlesGeometry.attributes.position.array.slice()
+    };
 
     const camera = new THREE.PerspectiveCamera(
       75,
@@ -220,7 +270,7 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio / 1);
 
-    const geometry = new THREE.IcosahedronGeometry(1, 10);
+    const geometry = new THREE.IcosahedronGeometry(1.5, 16); // 50% larger, smoother
 
     const sphereMaterial = new THREE.MeshStandardMaterial({
       metalness: 0.5,
@@ -257,11 +307,18 @@ export class GdmLiveAudioVisuals3D extends LitElement {
 
     this.sphere = sphere;
 
+    // Initialize audio reactive properties to avoid undefined errors
+    (this.sphere as any).audioReactive = {
+      baseScale: 1.0,
+      targetScale: 1.0,
+      colorPhase: 0
+    };
+
     const renderPass = new RenderPass(scene, camera);
 
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      5,
+      2.0, // Nice bloom intensity
       0.5,
       0,
     );
@@ -304,6 +361,11 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     const t = performance.now();
     const dt = (t - this.prevTime) / (1000 / 60);
     this.prevTime = t;
+
+    // Smooth mouse following with lag (creates fun drawing effect)
+    this.mouse.x += (this.targetMouse.x - this.mouse.x) * 0.05;
+    this.mouse.y += (this.targetMouse.y - this.mouse.y) * 0.05;
+
     const backdropMaterial = this.backdrop.material as THREE.RawShaderMaterial;
     const sphereMaterial = this.sphere.material as THREE.MeshStandardMaterial;
 
@@ -312,7 +374,7 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     // Orb scaling
     const targetScale = this.isProcessing
       ? 1 + (0.2 * this.outputAnalyser.data[1]) / 255
-      : 0.1 + Math.sin(t * 0.002) * 0.05; // Pulse when idle, but larger
+      : 0.1 + Math.sin(t * 0.001) * 0.05; // Slower pulse when idle
     this.sphere.scale.lerp(
       new THREE.Vector3(targetScale, targetScale, targetScale),
       0.1,
@@ -435,6 +497,58 @@ export class GdmLiveAudioVisuals3D extends LitElement {
   protected firstUpdated() {
     this.canvas = this.shadowRoot!.querySelector('canvas') as HTMLCanvasElement;
     this.init();
+  }
+
+  protected updated(changedProperties: Map<string, any>) {
+    super.updated(changedProperties);
+
+    // Update particle colors when theme changes
+    if (changedProperties.has('themeColors') && this.particles) {
+      this.updateParticleColors();
+    }
+  }
+
+  private updateParticleColors() {
+    const geometry = this.particles.geometry;
+    const colors = geometry.attributes.color.array as Float32Array;
+    const positions = geometry.attributes.position.array as Float32Array;
+    const particleCount = positions.length / 3;
+
+    // Use theme colors for particles
+    const themeColorObjs = this.themeColors.map(c => new THREE.Color(c));
+    const numColors = themeColorObjs.length;
+
+    for (let i = 0; i < particleCount; i++) {
+      const i3 = i * 3;
+      const x = positions[i3];
+      const z = positions[i3 + 2];
+
+      // Calculate angle in XZ plane to determine sector
+      const angle = Math.atan2(z, x);
+      const normalizedAngle = (angle + Math.PI) / (2 * Math.PI); // 0 to 1
+
+      // Determine which color pair to use based on angle (creates sectors)
+      const sectorIndex = Math.floor(normalizedAngle * numColors);
+      const nextSectorIndex = (sectorIndex + 1) % numColors;
+
+      // Calculate blend factor within sector for gradient effect
+      const sectorPhase = (normalizedAngle * numColors) % 1;
+      const blendFactor = sectorPhase;
+
+      // Mix colors for gradient effect
+      const color1 = themeColorObjs[sectorIndex];
+      const color2 = themeColorObjs[nextSectorIndex];
+      const mixedColor = new THREE.Color();
+      mixedColor.r = color1.r * (1 - blendFactor) + color2.r * blendFactor;
+      mixedColor.g = color1.g * (1 - blendFactor) + color2.g * blendFactor;
+      mixedColor.b = color1.b * (1 - blendFactor) + color2.b * blendFactor;
+
+      colors[i3] = mixedColor.r;
+      colors[i3 + 1] = mixedColor.g;
+      colors[i3 + 2] = mixedColor.b;
+    }
+
+    geometry.attributes.color.needsUpdate = true;
   }
 
   protected render() {
