@@ -273,7 +273,7 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio / 1);
 
-    const geometry = new THREE.IcosahedronGeometry(1.5, 16); // 50% larger, smoother
+    const geometry = new THREE.IcosahedronGeometry(1.0, 16); // Balanced size, smoother
 
     const sphereMaterial = new THREE.MeshStandardMaterial({
       metalness: 0.5,
@@ -389,8 +389,8 @@ export class GdmLiveAudioVisuals3D extends LitElement {
       ? 1 + (0.2 * this.outputAnalyser.data[1]) / 255 + avgVolume * 0.3
       : 0.1 + Math.sin(t * 0.001) * 0.05; // Slower pulse when idle
 
-    // CRITICAL: Clamp scale to max 1.5x to keep orb from dominating screen
-    const targetScale = THREE.MathUtils.clamp(rawTargetScale, 0.1, 1.5);
+    // CRITICAL: Clamp scale to max 1.2x to keep orb from dominating screen
+    const targetScale = THREE.MathUtils.clamp(rawTargetScale, 0.1, 1.2);
 
     this.sphere.scale.lerp(
       new THREE.Vector3(targetScale, targetScale, targetScale),
