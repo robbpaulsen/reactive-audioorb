@@ -76,6 +76,8 @@ export class GdmLiveAudioVisuals3D extends LitElement {
 
   // Component properties
   @property({type: Boolean}) isProcessing = false;
+  @property({type: Boolean}) isLiveStreamMode = false;
+  @property({type: String}) orbState: 'IDLE' | 'LISTENING' | 'AI_SPEAKING' = 'IDLE';
   @property({type: Boolean}) isDarkMode = true;
   @property({type: Number}) brightness = 0.5;
   @property({type: String}) orbColor = '#aaaaff';
@@ -384,10 +386,39 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     sphereMaterial.roughness = THREE.MathUtils.lerp(sphereMaterial.roughness, targetRoughness, 0.1);
     sphereMaterial.metalness = THREE.MathUtils.lerp(sphereMaterial.metalness, targetMetalness, 0.1);
 
-    // Orb scaling with MAX LIMIT to prevent screen-filling
-    const rawTargetScale = this.isProcessing
-      ? 1 + (0.2 * this.outputAnalyser.data[1]) / 255 + avgVolume * 0.3
-      : 0.1 + Math.sin(t * 0.001) * 0.05; // Slower pulse when idle
+    // Orb scaling and visual feedback based on state
+    let rawTargetScale: number;
+    let targetEmissiveIntensity: number;
+
+    if (this.isLiveStreamMode) {
+      // Live streaming mode: visual feedback based on orbState
+      switch (this.orbState) {
+        case 'LISTENING':
+          // User is talking: pulse faster with audio input
+          rawTargetScale = 1.0 + avgVolume * 0.4 + Math.sin(t * 0.005) * 0.1;
+          targetEmissiveIntensity = 2.0 + Math.sin(t * 0.003) * 0.5; // Bright pulsing
+          break;
+        case 'AI_SPEAKING':
+          // AI is responding: react to output audio
+          rawTargetScale = 1.0 + (0.2 * this.outputAnalyser.data[1]) / 255;
+          targetEmissiveIntensity = 1.5;
+          break;
+        case 'IDLE':
+        default:
+          // Idle: gentle breathing animation
+          rawTargetScale = 0.8 + Math.sin(t * 0.0015) * 0.1;
+          targetEmissiveIntensity = 0.7 + Math.sin(t * 0.002) * 0.3;
+          break;
+      }
+    } else if (this.isProcessing) {
+      // File playback mode
+      rawTargetScale = 1 + (0.2 * this.outputAnalyser.data[1]) / 255 + avgVolume * 0.3;
+      targetEmissiveIntensity = 1.5;
+    } else {
+      // Default idle state
+      rawTargetScale = 0.1 + Math.sin(t * 0.001) * 0.05;
+      targetEmissiveIntensity = 0.5;
+    }
 
     // CRITICAL: Clamp scale to max 1.2x to keep orb from dominating screen
     const targetScale = THREE.MathUtils.clamp(rawTargetScale, 0.1, 1.2);
@@ -399,7 +430,7 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     (this.sphere.material as THREE.MeshStandardMaterial).emissiveIntensity =
       THREE.MathUtils.lerp(
         (this.sphere.material as THREE.MeshStandardMaterial).emissiveIntensity,
-        this.isProcessing ? 1.5 : 0.5,
+        targetEmissiveIntensity,
         0.1,
       );
 
