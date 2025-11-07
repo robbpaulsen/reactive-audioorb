@@ -688,7 +688,7 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     mediaContainer.innerHTML = '';
     this.mediaElement = document.createElement(isVideo ? 'video' : 'audio');
     this.mediaElement.src = mediaUrl;
-    this.mediaElement.controls = true;
+    this.mediaElement.controls = false; // No native controls - using custom floating controls
     this.mediaElement.autoplay = true;
     this.mediaElement.onended = () => this.stopProcessing();
     mediaContainer.appendChild(this.mediaElement);
