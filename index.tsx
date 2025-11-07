@@ -174,7 +174,12 @@ export class GdmLiveAudio extends LitElement {
   @state() private currentTheme = 'default';
   @state() private showFloatingControls = true; // Show/hide controls on mouse move
   @state() private isFullscreen = false; // Track fullscreen state
+  @state() private isPaused = false; // Track pause state
   private mouseInactivityTimeout: number = 0;
+
+  // Playlist management
+  private playlist: {file: File, url: string, isVideo: boolean}[] = [];
+  private currentTrackIndex = 0;
 
   // Orb control states, modified by function calls
   @state() private orbColor = themes.default.colors[0]; // Default color
@@ -442,6 +447,18 @@ export class GdmLiveAudio extends LitElement {
     .floating-btn:active {
       transform: scale(0.98);
     }
+
+    .floating-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .floating-btn:disabled:hover {
+      background: rgba(0, 0, 0, 0.5);
+      transform: scale(1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
   `;
 
   constructor() {
@@ -631,12 +648,20 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     const input = e.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
 
-    const file = input.files[0];
-    const fileUrl = URL.createObjectURL(file);
-    const isVideo = file.type.startsWith('video/');
+    // Add all selected files to playlist
+    this.playlist = [];
+    for (let i = 0; i < input.files.length; i++) {
+      const file = input.files[i];
+      const fileUrl = URL.createObjectURL(file);
+      const isVideo = file.type.startsWith('video/');
+      this.playlist.push({file, url: fileUrl, isVideo});
+    }
+
+    this.currentTrackIndex = 0;
+    const firstTrack = this.playlist[0];
 
     await this.stopProcessing(); // Stop any previous playback
-    this.startProcessing(fileUrl, isVideo);
+    this.startProcessing(firstTrack.url, firstTrack.isVideo);
   }
 
   private async startProcessing(mediaUrl: string, isVideo: boolean) {
@@ -824,6 +849,42 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     }
   }
 
+  private togglePlayPause() {
+    if (!this.mediaElement) return;
+
+    if (this.isPaused) {
+      this.mediaElement.play();
+      this.inputAudioContext.resume();
+      this.outputAudioContext.resume();
+      this.isPaused = false;
+    } else {
+      this.mediaElement.pause();
+      this.isPaused = true;
+    }
+  }
+
+  private playNext() {
+    if (this.playlist.length === 0) return;
+
+    this.currentTrackIndex = (this.currentTrackIndex + 1) % this.playlist.length;
+    const track = this.playlist[this.currentTrackIndex];
+
+    this.stopProcessing().then(() => {
+      this.startProcessing(track.url, track.isVideo);
+    });
+  }
+
+  private playPrevious() {
+    if (this.playlist.length === 0) return;
+
+    this.currentTrackIndex = (this.currentTrackIndex - 1 + this.playlist.length) % this.playlist.length;
+    const track = this.playlist[this.currentTrackIndex];
+
+    this.stopProcessing().then(() => {
+      this.startProcessing(track.url, track.isVideo);
+    });
+  }
+
   render() {
     return html`
       <div>
@@ -839,6 +900,7 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                     accept="audio/*,video/*"
                     id="file-input"
                     class="file-input"
+                    multiple
                   />
                   <label for="file-input" class="file-label">
                     🎵 Choose Audio/Video
@@ -879,6 +941,15 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                   </select>
                 </div>
                 <div class="floating-controls ${this.showFloatingControls ? '' : 'hidden'}">
+                  <button class="floating-btn" @click=${this.playPrevious} ?disabled=${this.playlist.length <= 1}>
+                    ⏮️ Previous
+                  </button>
+                  <button class="floating-btn" @click=${this.togglePlayPause}>
+                    ${this.isPaused ? '▶️ Play' : '⏸️ Pause'}
+                  </button>
+                  <button class="floating-btn" @click=${this.playNext} ?disabled=${this.playlist.length <= 1}>
+                    ⏭️ Next
+                  </button>
                   <button class="floating-btn" @click=${this.toggleFullscreen}>
                     ${this.isFullscreen ? '🪟 Exit Fullscreen' : '🖥️ Fullscreen'}
                   </button>
