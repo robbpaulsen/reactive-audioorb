@@ -193,6 +193,14 @@ export class GdmLiveAudio extends LitElement {
   @state() private surfaceRoughness = 0.3; // 0.0 to 1.0, affected by audio intensity
   @state() private surfaceMetalness = 0.5; // 0.0 to 1.0, affected by audio intensity
 
+  // Live streaming mode (walkie-talkie with AI)
+  @state() private orbState: 'IDLE' | 'LISTENING' | 'AI_SPEAKING' = 'IDLE';
+  @state() private isLiveStreamMode = false; // Track if in live streaming mode vs file playback
+  private micStream: MediaStream | null = null;
+  private micSourceNode: MediaStreamAudioSourceNode | null = null;
+  private micProcessorNode: ScriptProcessorNode | null = null;
+  private isHoldingToTalk = false; // Track if user is holding Shift+Space or clicking orb
+
   // Model generation parameters
   @state() private temperature = 0.7;
   @state() private topK = 20;
@@ -477,6 +485,7 @@ export class GdmLiveAudio extends LitElement {
     // Handle mouse movement to show/hide controls
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleKeyPress = this.handleKeyPress.bind(this);
+    this.handleKeyUp = this.handleKeyUp.bind(this);
     this.handleFullscreenChange = this.handleFullscreenChange.bind(this);
   }
 
@@ -484,6 +493,7 @@ export class GdmLiveAudio extends LitElement {
     super.connectedCallback();
     window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('keydown', this.handleKeyPress);
+    window.addEventListener('keyup', this.handleKeyUp);
     document.addEventListener('fullscreenchange', this.handleFullscreenChange);
   }
 
@@ -491,8 +501,14 @@ export class GdmLiveAudio extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('keydown', this.handleKeyPress);
+    window.removeEventListener('keyup', this.handleKeyUp);
     document.removeEventListener('fullscreenchange', this.handleFullscreenChange);
     clearTimeout(this.mouseInactivityTimeout);
+
+    // Clean up live stream mode if active
+    if (this.isLiveStreamMode) {
+      this.stopLiveStreamMode();
+    }
   }
 
   private handleMouseMove() {
@@ -507,6 +523,15 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private handleKeyPress(e: KeyboardEvent) {
+    // Shift+Spacebar: Walkie-talkie mode (hold to talk)
+    if (e.shiftKey && e.key === ' ') {
+      e.preventDefault();
+      if (this.isLiveStreamMode && !this.isHoldingToTalk) {
+        this.startTalking();
+      }
+      return;
+    }
+
     if (!this.isProcessing) return;
 
     if (e.key === 'Escape' || e.key === ' ') {
@@ -524,6 +549,15 @@ export class GdmLiveAudio extends LitElement {
     if (e.key === 'f' || e.key === 'F') {
       e.preventDefault();
       this.toggleFullscreen();
+    }
+  }
+
+  private handleKeyUp(e: KeyboardEvent) {
+    // Release Shift+Spacebar: Stop talking
+    if (e.key === ' ') {
+      if (this.isLiveStreamMode && this.isHoldingToTalk) {
+        this.stopTalking();
+      }
     }
   }
 
@@ -825,6 +859,127 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     this.updateStatus('Select an audio or video file to begin.');
   }
 
+  // ========== LIVE STREAMING MODE (Walkie-Talkie with AI) ==========
+
+  private async startLiveStreamMode() {
+    if (this.isLiveStreamMode) return;
+
+    try {
+      // Request microphone access
+      this.micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 16000
+        }
+      });
+
+      this.isLiveStreamMode = true;
+      this.orbState = 'IDLE';
+      this.updateStatus('Live stream mode active. Hold Shift+Space or click & hold the orb to talk.');
+
+      // Initialize AI session for live streaming
+      const oldSession = await this.sessionPromise.catch(() => null);
+      oldSession?.close();
+      this.initSession();
+
+      this.inputAudioContext.resume();
+      this.outputAudioContext.resume();
+
+    } catch (error) {
+      this.updateError(`Microphone access denied: ${error.message}`);
+    }
+  }
+
+  private async stopLiveStreamMode() {
+    if (!this.isLiveStreamMode) return;
+
+    this.isLiveStreamMode = false;
+    this.orbState = 'IDLE';
+
+    // Stop talking if currently talking
+    if (this.isHoldingToTalk) {
+      this.stopTalking();
+    }
+
+    // Release microphone
+    if (this.micStream) {
+      this.micStream.getTracks().forEach(track => track.stop());
+      this.micStream = null;
+    }
+
+    if (this.micSourceNode) {
+      this.micSourceNode.disconnect();
+      this.micSourceNode = null;
+    }
+
+    if (this.micProcessorNode) {
+      this.micProcessorNode.disconnect();
+      this.micProcessorNode = null;
+    }
+
+    this.updateStatus('Select an audio or video file to begin.');
+  }
+
+  private startTalking() {
+    if (!this.isLiveStreamMode || this.isHoldingToTalk || !this.micStream) return;
+
+    this.isHoldingToTalk = true;
+    this.orbState = 'LISTENING';
+    this.updateStatus('🎙️ Listening...');
+
+    // Create audio pipeline for microphone
+    this.micSourceNode = this.inputAudioContext.createMediaStreamSource(this.micStream);
+
+    const bufferSize = 4096;
+    this.micProcessorNode = this.inputAudioContext.createScriptProcessor(
+      bufferSize,
+      1,
+      1
+    );
+
+    this.micProcessorNode.onaudioprocess = (audioProcessingEvent) => {
+      const pcmData = audioProcessingEvent.inputBuffer.getChannelData(0);
+      this.sessionPromise.then((session) => {
+        session.sendRealtimeInput({media: createBlob(pcmData)});
+      });
+    };
+
+    this.micSourceNode.connect(this.micProcessorNode);
+    this.micSourceNode.connect(this.inputNode);
+
+    // Silent output for processor
+    const zeroGain = this.inputAudioContext.createGain();
+    zeroGain.gain.setValueAtTime(0, this.inputAudioContext.currentTime);
+    this.micProcessorNode.connect(zeroGain);
+    zeroGain.connect(this.inputAudioContext.destination);
+  }
+
+  private stopTalking() {
+    if (!this.isHoldingToTalk) return;
+
+    this.isHoldingToTalk = false;
+    this.orbState = 'AI_SPEAKING';
+    this.updateStatus('🤖 AI is responding...');
+
+    // Disconnect microphone pipeline
+    if (this.micSourceNode) {
+      this.micSourceNode.disconnect();
+    }
+
+    if (this.micProcessorNode) {
+      this.micProcessorNode.disconnect();
+    }
+
+    // After a short delay, return to IDLE if AI hasn't started speaking
+    setTimeout(() => {
+      if (this.orbState === 'AI_SPEAKING' && this.isLiveStreamMode) {
+        this.orbState = 'IDLE';
+        this.updateStatus('Live stream mode active. Hold Shift+Space or click & hold the orb to talk.');
+      }
+    }, 2000);
+  }
+
   private async handleThemeChange(e: Event) {
     const select = e.target as HTMLSelectElement;
     this.currentTheme = select.value;
@@ -895,9 +1050,9 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     return html`
       <div>
         <div id="media-container" class="${this.isProcessing ? 'hidden' : ''}"></div>
-        <div class="controls ${this.isProcessing ? 'hidden' : ''}">
+        <div class="controls ${this.isProcessing || this.isLiveStreamMode ? 'hidden' : ''}">
           ${
-            this.isProcessing
+            this.isProcessing || this.isLiveStreamMode
               ? html``
               : html`
                   <input
@@ -911,6 +1066,9 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                   <label for="file-input" class="file-label">
                     🎵 Choose Audio/Video
                   </label>
+                  <button @click=${this.startLiveStreamMode} class="file-label">
+                    🎙️ Talk with AI
+                  </button>
                   <select
                     @change=${this.handleThemeChange}
                     class="theme-select"
@@ -967,11 +1125,43 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
             : ''
         }
 
+        ${
+          this.isLiveStreamMode
+            ? html`
+                <div class="theme-controls">
+                  <select
+                    @change=${this.handleThemeChange}
+                    class="theme-select"
+                    aria-label="Select color theme"
+                  >
+                    ${Object.entries(themes).map(
+                      ([key, theme]) => html`
+                        <option value=${key} ?selected=${key === this.currentTheme}>
+                          ${theme.icon} ${theme.name}
+                        </option>
+                      `,
+                    )}
+                  </select>
+                </div>
+                <div class="floating-controls ${this.showFloatingControls ? '' : 'hidden'}">
+                  <button class="floating-btn" @click=${this.toggleFullscreen}>
+                    ${this.isFullscreen ? '🪟 Exit Fullscreen' : '🖥️ Fullscreen'}
+                  </button>
+                  <button class="floating-btn" @click=${this.stopLiveStreamMode}>
+                    ⏹️ Exit Live Mode
+                  </button>
+                </div>
+              `
+            : ''
+        }
+
         <div id="status">${this.error ? this.error : this.status}</div>
         <gdm-live-audio-visuals-3d
           .inputNode=${this.inputNode}
           .outputNode=${this.outputNode}
           .isProcessing=${this.isProcessing}
+          .isLiveStreamMode=${this.isLiveStreamMode}
+          .orbState=${this.orbState}
           .isDarkMode=${this.isDarkMode}
           .brightness=${this.ambientBrightness}
           .orbColor=${this.orbColor}
