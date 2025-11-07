@@ -188,6 +188,11 @@ export class GdmLiveAudio extends LitElement {
   @state() private orbFrequency = 3.0;
   @state() private orbSpeed = 0.5;
 
+  // User-adjustable environment variables
+  @state() private userVolume = 1.0; // 0.0 to 1.0
+  @state() private userBrightness = 0.5; // 0.0 to 1.0
+  @state() private userIntensity = 0.5; // 0.0 to 1.0 (affects surface properties)
+
   // Model generation parameters
   @state() private temperature = 0.7;
   @state() private topK = 20;
@@ -459,6 +464,90 @@ export class GdmLiveAudio extends LitElement {
       transform: scale(1);
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
+
+    .env-controls {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%) translateX(100%);
+      z-index: 15;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(20px);
+      border-radius: 12px 0 0 12px;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      border-right: none;
+      transition: transform 0.3s ease;
+      min-width: 200px;
+    }
+
+    .env-controls:hover {
+      transform: translateY(-50%) translateX(0);
+    }
+
+    .env-control-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .env-control-label {
+      color: white;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .env-control-value {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 12px;
+    }
+
+    .env-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.2);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .env-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .env-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .env-slider:hover::-webkit-slider-thumb {
+      transform: scale(1.1);
+    }
+
+    .env-slider:hover::-moz-range-thumb {
+      transform: scale(1.1);
+    }
   `;
 
   constructor() {
@@ -685,6 +774,7 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     this.mediaElement.src = mediaUrl;
     this.mediaElement.controls = true;
     this.mediaElement.autoplay = true;
+    this.mediaElement.volume = this.userVolume; // Apply user volume
     this.mediaElement.onended = () => this.stopProcessing();
     mediaContainer.appendChild(this.mediaElement);
 
@@ -885,6 +975,24 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     });
   }
 
+  private handleVolumeChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    this.userVolume = parseFloat(input.value);
+    if (this.mediaElement) {
+      this.mediaElement.volume = this.userVolume;
+    }
+  }
+
+  private handleBrightnessChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    this.userBrightness = parseFloat(input.value);
+  }
+
+  private handleIntensityChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    this.userIntensity = parseFloat(input.value);
+  }
+
   render() {
     return html`
       <div>
@@ -956,6 +1064,53 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                   <button class="floating-btn" @click=${this.stopProcessing}>
                     ⏹️ Stop
                   </button>
+                </div>
+                <div class="env-controls">
+                  <div class="env-control-item">
+                    <div class="env-control-label">
+                      <span>🔊 Volume</span>
+                      <span class="env-control-value">${Math.round(this.userVolume * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      class="env-slider"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      .value=${this.userVolume.toString()}
+                      @input=${this.handleVolumeChange}
+                    />
+                  </div>
+                  <div class="env-control-item">
+                    <div class="env-control-label">
+                      <span>💡 Brightness</span>
+                      <span class="env-control-value">${Math.round(this.userBrightness * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      class="env-slider"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      .value=${this.userBrightness.toString()}
+                      @input=${this.handleBrightnessChange}
+                    />
+                  </div>
+                  <div class="env-control-item">
+                    <div class="env-control-label">
+                      <span>⚡ Intensity</span>
+                      <span class="env-control-value">${Math.round(this.userIntensity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      class="env-slider"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      .value=${this.userIntensity.toString()}
+                      @input=${this.handleIntensityChange}
+                    />
+                  </div>
                 </div>
               `
             : ''
