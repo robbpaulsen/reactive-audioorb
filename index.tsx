@@ -82,17 +82,17 @@ const functionDeclarations: FunctionDeclaration[] = [
 const themes = {
   default: {
     name: 'Default',
-    icon: '🔵',
+    icon: '🔹',
     colors: ['#aaaaff', '#ffaaaa', '#aaffaa', '#aaffff', '#ffaaff'],
   },
   catppuccin: {
     name: 'Catppuccin',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#cba6f7', '#b4befe', '#89dceb', '#a6e3a1', '#fab387'],
   },
   tokyonight: {
     name: 'Tokyonight',
-    icon: '🔷',
+    icon: '🔹',
     colors: ['#7aa2f7', '#bb9af7', '#9ece6a', '#e0af68', '#f7768e'],
   },
   poimandres: {
@@ -102,47 +102,47 @@ const themes = {
   },
   eldritch: {
     name: 'Eldritch',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#5D3A9B', '#4E878C', '#3A6B35', '#8C271E'],
   },
   halcyon: {
     name: 'Halcyon',
-    icon: '🟩',
+    icon: '🔹',
     colors: ['#94e2d5', '#f5c2e7', '#cba6f7', '#fab387'],
   },
   dracula: {
     name: 'Dracula',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#bd93f9', '#ff79c6', '#8be9fd', '#50fa7b', '#ffb86c', '#ff5555'],
   },
   nord: {
     name: 'Nord',
-    icon: '🔵',
+    icon: '🔹',
     colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead', '#a3be8c', '#ebcb8b'],
   },
   gruvbox: {
     name: 'Gruvbox',
-    icon: '🟢',
+    icon: '🔹',
     colors: ['#fb4934', '#b8bb26', '#fabd2f', '#83a598', '#d3869b', '#fe8019'],
   },
   synthwave: {
     name: 'Synthwave',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#ff00ff', '#00ffff', '#ff1493', '#7b68ee', '#ff6ec7', '#00d9ff'],
   },
   rosepine: {
     name: 'Rose Pine',
-    icon: '🟩',
+    icon: '🔹',
     colors: ['#ebbcba', '#f6c177', '#ea9a97', '#9ccfd8', '#c4a7e7', '#eb6f92'],
   },
   material: {
     name: 'Material',
-    icon: '🔷',
+    icon: '🔹',
     colors: ['#82aaff', '#c792ea', '#89ddff', '#c3e88d', '#ffcb6b', '#f07178'],
   },
   solarized: {
     name: 'Solarized',
-    icon: '🟦',
+    icon: '🔹',
     colors: ['#268bd2', '#2aa198', '#859900', '#b58900', '#cb4b16', '#dc322f'],
   },
   cyberpunk: {
@@ -152,12 +152,12 @@ const themes = {
   },
   sunset: {
     name: 'Sunset',
-    icon: '🟢',
+    icon: '🔹',
     colors: ['#ff6b6b', '#ee5a6f', '#c44569', '#f8b500', '#ff9a56', '#ff6348'],
   },
   ocean: {
     name: 'Ocean',
-    icon: '🔵',
+    icon: '🔹',
     colors: ['#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#667eea', '#764ba2'],
   },
 };
@@ -174,7 +174,12 @@ export class GdmLiveAudio extends LitElement {
   @state() private currentTheme = 'default';
   @state() private showFloatingControls = true; // Show/hide controls on mouse move
   @state() private isFullscreen = false; // Track fullscreen state
+  @state() private isPaused = false; // Track pause state
   private mouseInactivityTimeout: number = 0;
+
+  // Playlist management
+  private playlist: {file: File, url: string, isVideo: boolean}[] = [];
+  private currentTrackIndex = 0;
 
   // Orb control states, modified by function calls
   @state() private orbColor = themes.default.colors[0]; // Default color
@@ -442,6 +447,18 @@ export class GdmLiveAudio extends LitElement {
     .floating-btn:active {
       transform: scale(0.98);
     }
+
+    .floating-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .floating-btn:disabled:hover {
+      background: rgba(0, 0, 0, 0.5);
+      transform: scale(1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
   `;
 
   constructor() {
@@ -631,12 +648,20 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     const input = e.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
 
-    const file = input.files[0];
-    const fileUrl = URL.createObjectURL(file);
-    const isVideo = file.type.startsWith('video/');
+    // Add all selected files to playlist
+    this.playlist = [];
+    for (let i = 0; i < input.files.length; i++) {
+      const file = input.files[i];
+      const fileUrl = URL.createObjectURL(file);
+      const isVideo = file.type.startsWith('video/');
+      this.playlist.push({file, url: fileUrl, isVideo});
+    }
+
+    this.currentTrackIndex = 0;
+    const firstTrack = this.playlist[0];
 
     await this.stopProcessing(); // Stop any previous playback
-    this.startProcessing(fileUrl, isVideo);
+    this.startProcessing(firstTrack.url, firstTrack.isVideo);
   }
 
   private async startProcessing(mediaUrl: string, isVideo: boolean) {
@@ -824,6 +849,42 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     }
   }
 
+  private togglePlayPause() {
+    if (!this.mediaElement) return;
+
+    if (this.isPaused) {
+      this.mediaElement.play();
+      this.inputAudioContext.resume();
+      this.outputAudioContext.resume();
+      this.isPaused = false;
+    } else {
+      this.mediaElement.pause();
+      this.isPaused = true;
+    }
+  }
+
+  private playNext() {
+    if (this.playlist.length === 0) return;
+
+    this.currentTrackIndex = (this.currentTrackIndex + 1) % this.playlist.length;
+    const track = this.playlist[this.currentTrackIndex];
+
+    this.stopProcessing().then(() => {
+      this.startProcessing(track.url, track.isVideo);
+    });
+  }
+
+  private playPrevious() {
+    if (this.playlist.length === 0) return;
+
+    this.currentTrackIndex = (this.currentTrackIndex - 1 + this.playlist.length) % this.playlist.length;
+    const track = this.playlist[this.currentTrackIndex];
+
+    this.stopProcessing().then(() => {
+      this.startProcessing(track.url, track.isVideo);
+    });
+  }
+
   render() {
     return html`
       <div>
@@ -839,6 +900,7 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                     accept="audio/*,video/*"
                     id="file-input"
                     class="file-input"
+                    multiple
                   />
                   <label for="file-input" class="file-label">
                     🎵 Choose Audio/Video
@@ -879,6 +941,15 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                   </select>
                 </div>
                 <div class="floating-controls ${this.showFloatingControls ? '' : 'hidden'}">
+                  <button class="floating-btn" @click=${this.playPrevious} ?disabled=${this.playlist.length <= 1}>
+                    ⏮️ Previous
+                  </button>
+                  <button class="floating-btn" @click=${this.togglePlayPause}>
+                    ${this.isPaused ? '▶️ Play' : '⏸️ Pause'}
+                  </button>
+                  <button class="floating-btn" @click=${this.playNext} ?disabled=${this.playlist.length <= 1}>
+                    ⏭️ Next
+                  </button>
                   <button class="floating-btn" @click=${this.toggleFullscreen}>
                     ${this.isFullscreen ? '🪟 Exit Fullscreen' : '🖥️ Fullscreen'}
                   </button>
