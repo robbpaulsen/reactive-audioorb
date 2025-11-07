@@ -766,18 +766,22 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     this.orbColor = themes[this.currentTheme].colors[0];
 
     if (this.isProcessing) {
-      // Hot-swap theme without stopping playback
+      // Hot-swap theme: restart AI session without stopping media playback
       const currentThemeData = themes[this.currentTheme];
-      const availableColors = currentThemeData.colors.join(', ');
 
-      // Send a text message to the AI to inform about the theme change
-      this.sessionPromise.then((session) => {
-        session.sendRealtimeInput({
-          text: `THEME CHANGED: The user has switched to the "${currentThemeData.name}" theme. From now on, you MUST ONLY use colors from this new palette: ${availableColors}. Update the orb color immediately to reflect this change.`
-        });
-      });
+      // Close old session and create new one with updated theme colors
+      const oldSession = await this.sessionPromise.catch(() => null);
+      oldSession?.close();
+      this.initSession();
 
       this.updateStatus(`Theme changed to ${currentThemeData.name} - colors updating...`);
+
+      // Status message will auto-clear after 2 seconds
+      setTimeout(() => {
+        if (this.isProcessing) {
+          this.updateStatus('Processing file...');
+        }
+      }, 2000);
     } else {
       const session = await this.sessionPromise.catch(() => null);
       session?.close();
