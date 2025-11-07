@@ -248,6 +248,26 @@ export class GdmLiveAudio extends LitElement {
       pointer-events: none;
     }
 
+    .theme-controls {
+      z-index: 10;
+      position: absolute;
+      bottom: 10vh;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .theme-controls:hover,
+    .theme-controls.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+
     button,
     .file-label,
     .theme-select {
@@ -766,18 +786,22 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     this.orbColor = themes[this.currentTheme].colors[0];
 
     if (this.isProcessing) {
-      // Hot-swap theme without stopping playback
+      // Hot-swap theme: restart AI session without stopping media playback
       const currentThemeData = themes[this.currentTheme];
-      const availableColors = currentThemeData.colors.join(', ');
 
-      // Send a text message to the AI to inform about the theme change
-      this.sessionPromise.then((session) => {
-        session.sendRealtimeInput({
-          text: `THEME CHANGED: The user has switched to the "${currentThemeData.name}" theme. From now on, you MUST ONLY use colors from this new palette: ${availableColors}. Update the orb color immediately to reflect this change.`
-        });
-      });
+      // Close old session and create new one with updated theme colors
+      const oldSession = await this.sessionPromise.catch(() => null);
+      oldSession?.close();
+      this.initSession();
 
       this.updateStatus(`Theme changed to ${currentThemeData.name} - colors updating...`);
+
+      // Status message will auto-clear after 2 seconds
+      setTimeout(() => {
+        if (this.isProcessing) {
+          this.updateStatus('Processing file...');
+        }
+      }, 2000);
     } else {
       const session = await this.sessionPromise.catch(() => null);
       session?.close();
@@ -824,6 +848,21 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
         ${
           this.isProcessing
             ? html`
+                <div class="theme-controls">
+                  <select
+                    @change=${this.handleThemeChange}
+                    class="theme-select"
+                    aria-label="Select color theme"
+                  >
+                    ${Object.entries(themes).map(
+                      ([key, theme]) => html`
+                        <option value=${key} ?selected=${key === this.currentTheme}>
+                          🎨 ${theme.name}
+                        </option>
+                      `,
+                    )}
+                  </select>
+                </div>
                 <div class="floating-controls ${this.showFloatingControls ? '' : 'hidden'}">
                   <button class="floating-btn" @click=${this.toggleFullscreen}>
                     ${this.isFullscreen ? '🪟 Exit Fullscreen' : '🖥️ Fullscreen'}
