@@ -549,7 +549,9 @@ export class GdmLiveAudio extends LitElement {
           voiceConfig: {prebuiltVoiceConfig: {voiceName: 'Zephyr'}},
         },
         tools: [{functionDeclarations}],
-        systemInstruction: `You are a creative visual intelligence. As you process incoming audio and video, use the provided tools to control a visual orb to match the mood and events. Be creative and responsive. Use 'setDeformation' to control the shape: 'amplitude' for intensity, 'frequency' for detail, and 'speed' for animation. For example, calm music might have low amplitude and speed, while intense electronic music might have high amplitude and frequency. Use 'setOrbColor' to match the video's colors or the music's mood, choosing from the current theme's palette: ${availableColors}. Use 'triggerPulse' for sharp beats or visual flashes. Combine these tools to create a compelling, synchronized visual experience.`,
+        systemInstruction: `You are a creative visual intelligence. As you process incoming audio and video, use the provided tools to control a visual orb to match the mood and events. Be creative and responsive. Use 'setDeformation' to control the shape: 'amplitude' for intensity, 'frequency' for detail, and 'speed' for animation. For example, calm music might have low amplitude and speed, while intense electronic music might have high amplitude and frequency.
+
+IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from the current theme's palette: ${availableColors}. DO NOT use colors outside this palette. Rotate through these colors to match the mood. Use 'triggerPulse' for sharp beats or visual flashes. Combine these tools to create a compelling, synchronized visual experience.`,
         topK: this.topK,
         topP: this.topP,
         temperature: this.temperature,
@@ -764,8 +766,18 @@ export class GdmLiveAudio extends LitElement {
     this.orbColor = themes[this.currentTheme].colors[0];
 
     if (this.isProcessing) {
-      await this.stopProcessing();
-      this.updateStatus('Theme changed. Please select a file again.');
+      // Hot-swap theme without stopping playback
+      const currentThemeData = themes[this.currentTheme];
+      const availableColors = currentThemeData.colors.join(', ');
+
+      // Send a text message to the AI to inform about the theme change
+      this.sessionPromise.then((session) => {
+        session.sendRealtimeInput({
+          text: `THEME CHANGED: The user has switched to the "${currentThemeData.name}" theme. From now on, you MUST ONLY use colors from this new palette: ${availableColors}. Update the orb color immediately to reflect this change.`
+        });
+      });
+
+      this.updateStatus(`Theme changed to ${currentThemeData.name} - colors updating...`);
     } else {
       const session = await this.sessionPromise.catch(() => null);
       session?.close();
