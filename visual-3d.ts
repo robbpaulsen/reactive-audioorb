@@ -84,6 +84,9 @@ export class GdmLiveAudioVisuals3D extends LitElement {
   @property({type: Number}) amplitude = 0.5;
   @property({type: Number}) frequency = 3.0;
   @property({type: Number}) speed = 0.5;
+  @property({type: Number}) audioIntensity = 0.0;
+  @property({type: Number}) surfaceRoughness = 0.3;
+  @property({type: Number}) surfaceMetalness = 0.5;
   @property({type: Number}) temperature = 0.7;
   @property({type: Number}) topK = 20;
   @property({type: Number}) topP = 0.8;
@@ -371,10 +374,24 @@ export class GdmLiveAudioVisuals3D extends LitElement {
 
     backdropMaterial.uniforms.rand.value = Math.random() * 10000;
 
-    // Orb scaling
-    const targetScale = this.isProcessing
-      ? 1 + (0.2 * this.outputAnalyser.data[1]) / 255
+    // Calculate audio intensity from input analyser (average of all frequencies)
+    const avgVolume = this.inputAnalyser.data.reduce((a, b) => a + b, 0) / this.inputAnalyser.data.length / 255;
+
+    // Update surface properties based on audio intensity
+    const targetRoughness = THREE.MathUtils.clamp(0.1 + avgVolume * 0.6, 0.1, 0.7);
+    const targetMetalness = THREE.MathUtils.clamp(0.3 + avgVolume * 0.4, 0.3, 0.7);
+
+    sphereMaterial.roughness = THREE.MathUtils.lerp(sphereMaterial.roughness, targetRoughness, 0.1);
+    sphereMaterial.metalness = THREE.MathUtils.lerp(sphereMaterial.metalness, targetMetalness, 0.1);
+
+    // Orb scaling with MAX LIMIT to prevent screen-filling
+    const rawTargetScale = this.isProcessing
+      ? 1 + (0.2 * this.outputAnalyser.data[1]) / 255 + avgVolume * 0.3
       : 0.1 + Math.sin(t * 0.001) * 0.05; // Slower pulse when idle
+
+    // CRITICAL: Clamp scale to max 1.5x to keep orb from dominating screen
+    const targetScale = THREE.MathUtils.clamp(rawTargetScale, 0.1, 1.5);
+
     this.sphere.scale.lerp(
       new THREE.Vector3(targetScale, targetScale, targetScale),
       0.1,

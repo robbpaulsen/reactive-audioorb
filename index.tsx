@@ -188,6 +188,11 @@ export class GdmLiveAudio extends LitElement {
   @state() private orbFrequency = 3.0;
   @state() private orbSpeed = 0.5;
 
+  // Auto-detected audio/video intensity
+  @state() private audioIntensity = 0.0; // 0.0 to 1.0, calculated from input analyser
+  @state() private surfaceRoughness = 0.3; // 0.0 to 1.0, affected by audio intensity
+  @state() private surfaceMetalness = 0.5; // 0.0 to 1.0, affected by audio intensity
+
   // Model generation parameters
   @state() private temperature = 0.7;
   @state() private topK = 20;
@@ -885,6 +890,7 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
     });
   }
 
+
   render() {
     return html`
       <div>
@@ -974,6 +980,9 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
           .amplitude=${this.orbAmplitude}
           .frequency=${this.orbFrequency}
           .speed=${this.orbSpeed}
+          .audioIntensity=${this.audioIntensity}
+          .surfaceRoughness=${this.surfaceRoughness}
+          .surfaceMetalness=${this.surfaceMetalness}
           .temperature=${this.temperature}
           .topK=${this.topK}
           .topP=${this.topP}
