@@ -82,17 +82,17 @@ const functionDeclarations: FunctionDeclaration[] = [
 const themes = {
   default: {
     name: 'Default',
-    icon: '🔵',
+    icon: '🔹',
     colors: ['#aaaaff', '#ffaaaa', '#aaffaa', '#aaffff', '#ffaaff'],
   },
   catppuccin: {
     name: 'Catppuccin',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#cba6f7', '#b4befe', '#89dceb', '#a6e3a1', '#fab387'],
   },
   tokyonight: {
     name: 'Tokyonight',
-    icon: '🔷',
+    icon: '🔹',
     colors: ['#7aa2f7', '#bb9af7', '#9ece6a', '#e0af68', '#f7768e'],
   },
   poimandres: {
@@ -102,47 +102,47 @@ const themes = {
   },
   eldritch: {
     name: 'Eldritch',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#5D3A9B', '#4E878C', '#3A6B35', '#8C271E'],
   },
   halcyon: {
     name: 'Halcyon',
-    icon: '🟩',
+    icon: '🔹',
     colors: ['#94e2d5', '#f5c2e7', '#cba6f7', '#fab387'],
   },
   dracula: {
     name: 'Dracula',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#bd93f9', '#ff79c6', '#8be9fd', '#50fa7b', '#ffb86c', '#ff5555'],
   },
   nord: {
     name: 'Nord',
-    icon: '🔵',
+    icon: '🔹',
     colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead', '#a3be8c', '#ebcb8b'],
   },
   gruvbox: {
     name: 'Gruvbox',
-    icon: '🟢',
+    icon: '🔹',
     colors: ['#fb4934', '#b8bb26', '#fabd2f', '#83a598', '#d3869b', '#fe8019'],
   },
   synthwave: {
     name: 'Synthwave',
-    icon: '🟪',
+    icon: '🔹',
     colors: ['#ff00ff', '#00ffff', '#ff1493', '#7b68ee', '#ff6ec7', '#00d9ff'],
   },
   rosepine: {
     name: 'Rose Pine',
-    icon: '🟩',
+    icon: '🔹',
     colors: ['#ebbcba', '#f6c177', '#ea9a97', '#9ccfd8', '#c4a7e7', '#eb6f92'],
   },
   material: {
     name: 'Material',
-    icon: '🔷',
+    icon: '🔹',
     colors: ['#82aaff', '#c792ea', '#89ddff', '#c3e88d', '#ffcb6b', '#f07178'],
   },
   solarized: {
     name: 'Solarized',
-    icon: '🟦',
+    icon: '🔹',
     colors: ['#268bd2', '#2aa198', '#859900', '#b58900', '#cb4b16', '#dc322f'],
   },
   cyberpunk: {
@@ -152,12 +152,12 @@ const themes = {
   },
   sunset: {
     name: 'Sunset',
-    icon: '🟢',
+    icon: '🔹',
     colors: ['#ff6b6b', '#ee5a6f', '#c44569', '#f8b500', '#ff9a56', '#ff6348'],
   },
   ocean: {
     name: 'Ocean',
-    icon: '🔵',
+    icon: '🔹',
     colors: ['#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#667eea', '#764ba2'],
   },
 };
