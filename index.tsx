@@ -82,66 +82,82 @@ const functionDeclarations: FunctionDeclaration[] = [
 const themes = {
   default: {
     name: 'Default',
+    icon: '🔵',
     colors: ['#aaaaff', '#ffaaaa', '#aaffaa', '#aaffff', '#ffaaff'],
   },
   catppuccin: {
     name: 'Catppuccin',
+    icon: '🟪',
     colors: ['#cba6f7', '#b4befe', '#89dceb', '#a6e3a1', '#fab387'],
   },
   tokyonight: {
     name: 'Tokyonight',
+    icon: '🔷',
     colors: ['#7aa2f7', '#bb9af7', '#9ece6a', '#e0af68', '#f7768e'],
   },
   poimandres: {
     name: 'Poimandres',
+    icon: '🔹',
     colors: ['#add7ff', '#5de4c7', '#fffac2', '#d0679d'],
   },
   eldritch: {
     name: 'Eldritch',
+    icon: '🟪',
     colors: ['#5D3A9B', '#4E878C', '#3A6B35', '#8C271E'],
   },
   halcyon: {
     name: 'Halcyon',
+    icon: '🟩',
     colors: ['#94e2d5', '#f5c2e7', '#cba6f7', '#fab387'],
   },
   dracula: {
     name: 'Dracula',
+    icon: '🟪',
     colors: ['#bd93f9', '#ff79c6', '#8be9fd', '#50fa7b', '#ffb86c', '#ff5555'],
   },
   nord: {
     name: 'Nord',
+    icon: '🔵',
     colors: ['#88c0d0', '#81a1c1', '#5e81ac', '#b48ead', '#a3be8c', '#ebcb8b'],
   },
   gruvbox: {
     name: 'Gruvbox',
+    icon: '🟢',
     colors: ['#fb4934', '#b8bb26', '#fabd2f', '#83a598', '#d3869b', '#fe8019'],
   },
   synthwave: {
     name: 'Synthwave',
+    icon: '🟪',
     colors: ['#ff00ff', '#00ffff', '#ff1493', '#7b68ee', '#ff6ec7', '#00d9ff'],
   },
   rosepine: {
     name: 'Rose Pine',
+    icon: '🟩',
     colors: ['#ebbcba', '#f6c177', '#ea9a97', '#9ccfd8', '#c4a7e7', '#eb6f92'],
   },
   material: {
     name: 'Material',
+    icon: '🔷',
     colors: ['#82aaff', '#c792ea', '#89ddff', '#c3e88d', '#ffcb6b', '#f07178'],
   },
   solarized: {
     name: 'Solarized',
+    icon: '🟦',
     colors: ['#268bd2', '#2aa198', '#859900', '#b58900', '#cb4b16', '#dc322f'],
   },
   cyberpunk: {
     name: 'Cyberpunk',
+    icon: '🔹',
     colors: ['#00ff9f', '#00b8ff', '#d600ff', '#ff00ff', '#fffc00', '#ff003c'],
   },
   sunset: {
     name: 'Sunset',
+    icon: '🟢',
     colors: ['#ff6b6b', '#ee5a6f', '#c44569', '#f8b500', '#ff9a56', '#ff6348'],
   },
   ocean: {
     name: 'Ocean',
+    icon: '🔵',
     colors: ['#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#667eea', '#764ba2'],
   },
 };
@@ -835,7 +851,7 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                     ${Object.entries(themes).map(
                       ([key, theme]) => html`
                         <option value=${key} ?selected=${key === this.currentTheme}>
-                          🎨 ${theme.name}
+                          ${theme.icon} ${theme.name}
                         </option>
                       `,
                     )}
@@ -856,7 +872,7 @@ IMPORTANT: Use 'setOrbColor' to set the orb color. You MUST ONLY use colors from
                     ${Object.entries(themes).map(
                       ([key, theme]) => html`
                         <option value=${key} ?selected=${key === this.currentTheme}>
-                          🎨 ${theme.name}
+                          ${theme.icon} ${theme.name}
                         </option>
                       `,
                     )}
