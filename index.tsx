@@ -259,13 +259,12 @@ export class GdmLiveAudio extends LitElement {
       justify-content: center;
       opacity: 0;
       transition: opacity 0.3s ease;
-      pointer-events: none;
+      pointer-events: all;
+      padding: 40px 0;
     }
 
-    .theme-controls:hover,
-    .theme-controls.show {
+    .theme-controls:hover {
       opacity: 1;
-      pointer-events: all;
     }
 
     button,
